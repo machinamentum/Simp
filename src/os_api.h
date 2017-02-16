@@ -76,16 +76,25 @@ s32  os_number_open_windows();
 void os_pump_input();
 void os_make_current(OS_Window win, OS_GL_Context ctx);
 void os_get_window_dimensions(OS_Window win, s32 *width, s32 *height);
+bool os_get_mouse_position(OS_Window win, s32 *x, s32 *y);
 
 enum Event_Type {
 	NO_EVENT,
 	KEYBOARD,
+	MOUSE_BUTTON,
 	QUIT
+};
+enum Button_Type {
+	MOUSE_LEFT,
+	MOUSE_RIGHT
 };
 
 struct Input_Event {
 	Event_Type type;
 	OS_Window window;
+
+	Button_Type button;
+	bool down;
 };
 
 extern Array<Input_Event> input_events;

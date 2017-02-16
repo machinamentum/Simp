@@ -56,6 +56,15 @@ void os_get_window_dimensions(OS_Window win, s32 *w, s32 *h) {
 	*h = xwa.height;
 }
 
+bool os_get_mouse_position(OS_Window win, s32 *x, s32 *y) {
+	Window root;
+	Window child;
+	int rx, ry;
+	u32 mask;
+	Bool relative = XQueryPointer(global_display, win, &root, &child, &rx, &ry, x, y, &mask);
+	return relative == True;
+}
+
 void os_make_current(OS_Window win, OS_GL_Context ctx) {
 	glXMakeCurrent(global_display, win, ctx);
 }
@@ -94,7 +103,34 @@ void os_pump_input() {
 	            ev.window = event.xclient.window;
 	            input_events.add(ev);
         	}
-		}
+		} else if (event.type == ButtonPress) {
+        	Input_Event ev;
+            ev.type = Event_Type::MOUSE_BUTTON;
+            ev.window = event.xbutton.window;
+            auto button = event.xbutton.button;
+            if (button == Button1) {
+            	ev.button = Button_Type::MOUSE_LEFT;
+            } else if (button == Button3) {
+            	ev.button = Button_Type::MOUSE_RIGHT;
+            }
+
+           	ev.down = true;
+           	input_events.add(ev);
+        } else if (event.type == ButtonRelease) {
+        	Input_Event ev;
+            ev.type = Event_Type::MOUSE_BUTTON;
+            ev.window = event.xbutton.window;
+
+            auto button = event.xbutton.button;
+            if (button == Button1) {
+            	ev.button = Button_Type::MOUSE_LEFT;
+            } else if (button == Button3) {
+            	ev.button = Button_Type::MOUSE_RIGHT;
+            }
+
+           	ev.down = false;
+           	input_events.add(ev);
+        }
 	}
 
 	XUnlockDisplay(global_display);

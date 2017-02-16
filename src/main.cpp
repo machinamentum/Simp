@@ -32,10 +32,12 @@ struct Editor_Window {
 	OS_Window os_window;
 	OS_GL_Context os_gl_context;
 
+	bool mouse_button_left = false;
+
 	// starting x,y of the image editing area
-	int image_x = 600;
+	int image_x = 400;
 	int image_y = 200;
-	float image_scale = 16.0;
+	float image_scale = 8.0;
 	Image *image = nullptr;
 };
 
@@ -47,6 +49,15 @@ void remove_window_by_id(Array<Editor_Window *> &wins, OS_Window id) {
 	}
 
 	wins.remove(index);
+}
+
+Editor_Window *get_editor_for_window(Array<Editor_Window *> &wins, OS_Window id) {
+	for (int index = 0; index < wins.count; ++index) {
+		Editor_Window *win = wins[index];
+		if (win->os_window == id) return win;
+	}
+
+	return nullptr;
 }
 
 Editor_Window *create_editor_window(Array<Editor_Window *> &wins) {
@@ -73,7 +84,6 @@ static void draw_quad(float x, float y, float width, float height, float scale) 
 }
 
 static void draw_grid(float x, float y, int width, int height, float scale) {
-
 	glDisable(GL_TEXTURE_2D);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -125,6 +135,42 @@ static void draw(Editor_Window *ed) {
 	os_swap_buffers(ed->os_window);
 }
 
+bool get_pixel_pointed_at(Editor_Window *ed, s32 cursor_x, s32 cursor_y, s32 *px, s32 *py) {
+	float scale = ed->image_scale;
+	if (cursor_x < ed->image_x) return false;
+	if (cursor_y < ed->image_y) return false;
+
+	cursor_x = (cursor_x-ed->image_x);
+	cursor_y = (cursor_y-ed->image_y);
+
+	float inv_scale = 1.0 / scale;
+	s32 ox = (s32)(cursor_x * inv_scale);
+	s32 oy = (s32)(cursor_y * inv_scale);
+
+	if (ox >= ed->image->width) return false;
+	if (oy >= ed->image->height) return false;
+
+	*px = ox;
+	*py = oy;
+	return true;
+}
+
+static void update(Editor_Window *ed) {
+
+	s32 cx, cy;
+	if (os_get_mouse_position(ed->os_window, &cx, &cy)) {
+		s32 px = 0, py = 0;
+		if (get_pixel_pointed_at(ed, cx, cy, &px, &py) && ed->mouse_button_left) {
+			char *data = ed->image->data;
+			data = data + ((px + py*ed->image->width) * 4);
+			data[0] = 255;
+			data[1] = 0;
+			data[2] = 0;
+			data[3] = 255;
+		}
+	}
+}
+
 static Array<Editor_Window *> windows;
 
 int main(int argc, char **argv) {
@@ -148,6 +194,13 @@ int main(int argc, char **argv) {
 			if (ev.type == Event_Type::QUIT) {
 				os_close_window(ev.window);
 				remove_window_by_id(windows, ev.window);
+			} else if (ev.type == Event_Type::MOUSE_BUTTON) {
+				Editor_Window *ed = get_editor_for_window(windows, ev.window);
+				if (ed) {
+					if (ev.button == Button_Type::MOUSE_LEFT) {
+						ed->mouse_button_left = ev.down;
+					}
+				}
 			}
 		}
 
@@ -156,6 +209,7 @@ int main(int argc, char **argv) {
 		os_pump_input();
 		for (int i = 0; i < windows.count; ++i) {
 			Editor_Window *win = windows[i];
+			update(win);
 			draw(win);
 		}
 	}
