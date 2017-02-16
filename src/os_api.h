@@ -86,7 +86,9 @@ enum Event_Type {
 };
 enum Button_Type {
 	MOUSE_LEFT,
-	MOUSE_RIGHT
+	MOUSE_RIGHT,
+	MOUSE_MIDDLE, // press scroll-wheel
+	MOUSE_SCROLL, // this is assumed as a tick since X11 is weird and maps scroll up/down as buttons
 };
 
 enum Key_Type {

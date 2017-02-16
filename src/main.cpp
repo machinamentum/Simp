@@ -164,15 +164,16 @@ static void draw(Editor_Window *ed) {
 		glBindTexture(GL_TEXTURE_2D, im->texID);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, im->width, im->height, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
 		draw_quad(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale);
-		if (ed->image_scale > 1.0) {
+		if (ed->image_scale > 2.0) {
 			glColor4f(0.2, 0.2, 0.2, 0.5);
 			glLineWidth(1.0);
 			draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, 1);
-			glColor4f(0.0, 0.0, 0.0, 1.0);
-			// glLineWidth(1.5);
-			draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, ed->tile_spacing);
-			glColor4f(1, 1, 1, 1);
 		}
+
+		glColor4f(0.0, 0.0, 0.0, 1.0);
+		// glLineWidth(1.5);
+		draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, ed->tile_spacing);
+		glColor4f(1, 1, 1, 1);
 	}
 
 	s32 color_bar_y = h - 40;
@@ -243,6 +244,15 @@ static void update(Editor_Window *ed) {
 	}
 }
 
+static void zoom_editor_one_tick(Editor_Window *ed, bool down) {
+	if (down) {
+		ed->image_scale *= 0.5;
+	} else {
+		ed->image_scale *= 2.0;
+	}
+	ed->is_dirty = true;
+}
+
 static Array<Editor_Window *> windows;
 
 int main(int argc, char **argv) {
@@ -271,7 +281,9 @@ int main(int argc, char **argv) {
 				if (ed) {
 					if (ev.button == Button_Type::MOUSE_LEFT) {
 						ed->mouse_button_left = ev.down;
-					}
+					} else if (ev.button == Button_Type::MOUSE_SCROLL) {
+						zoom_editor_one_tick(ed, ev.down);
+					} 
 				}
 			} else if (ev.type == Event_Type::KEYBOARD) {
 				Editor_Window *ed = get_editor_for_window(windows, ev.window);

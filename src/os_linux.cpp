@@ -88,7 +88,7 @@ void os_swap_buffers(OS_Window win) {
 }
 
 Array<Input_Event> input_events;
-
+#include <cstdio>
 void os_pump_input() {
 	input_events.clear();
 
@@ -109,13 +109,21 @@ void os_pump_input() {
             ev.type = Event_Type::MOUSE_BUTTON;
             ev.window = event.xbutton.window;
             auto button = event.xbutton.button;
+            ev.down = true;
             if (button == Button1) {
             	ev.button = Button_Type::MOUSE_LEFT;
             } else if (button == Button3) {
             	ev.button = Button_Type::MOUSE_RIGHT;
+            } else if (button == Button4) {
+            	ev.button = Button_Type::MOUSE_SCROLL;
+            	ev.down = false;
+            } else if (button == Button5) {
+            	ev.button = Button_Type::MOUSE_SCROLL;
+            	ev.down = true;
+            } else {
+            	continue;
             }
 
-           	ev.down = true;
            	input_events.add(ev);
         } else if (event.type == ButtonRelease) {
         	Input_Event ev;
@@ -127,6 +135,8 @@ void os_pump_input() {
             	ev.button = Button_Type::MOUSE_LEFT;
             } else if (button == Button3) {
             	ev.button = Button_Type::MOUSE_RIGHT;
+            } else {
+            	continue;
             }
 
            	ev.down = false;
