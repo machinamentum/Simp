@@ -89,11 +89,17 @@ enum Button_Type {
 	MOUSE_RIGHT
 };
 
+enum Key_Type {
+	NONE,
+	LCONTROL
+};
+
 struct Input_Event {
 	Event_Type type;
 	OS_Window window;
 
 	Button_Type button;
+	Key_Type key;
 	bool down;
 };
 

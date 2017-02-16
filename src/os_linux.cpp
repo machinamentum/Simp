@@ -2,6 +2,7 @@
 // that this would work fine on OSX, maybe.
 #include "os_api.h"
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 static Display *global_display = nullptr;
 static Atom global_wm_delete_window = 0;
 static XVisualInfo *vi;
@@ -130,6 +131,39 @@ void os_pump_input() {
 
            	ev.down = false;
            	input_events.add(ev);
+        }  else if (event.type == KeyPress) {
+        	u32 shift = (event.xkey.state & ShiftMask) != 0;
+        	auto keysym = XkbKeycodeToKeysym(global_display, event.xkey.keycode, 0, shift);
+        	Input_Event ev;
+            ev.type = Event_Type::KEYBOARD;
+            ev.down = true;
+            ev.key = (keysym == XK_Control_L) ? Key_Type::LCONTROL : (Key_Type)-1;
+            ev.window = event.xkey.window;
+
+            if (ev.key == -1) continue;
+            input_events.add(ev);
+        } else if (event.type == KeyRelease) {
+        	if (XEventsQueued(global_display, QueuedAfterReading)) {
+        		XEvent nev;
+        		XPeekEvent(global_display, &nev);
+
+        		if (nev.type == KeyPress && nev.xkey.time == event.xkey.time
+        			&& nev.xkey.keycode == event.xkey.keycode) {
+        			XNextEvent(global_display, &nev);
+        			continue;
+        		}
+        	}
+
+        	u32 shift = (event.xkey.state & ShiftMask) != 0;
+        	auto keysym = XkbKeycodeToKeysym(global_display, event.xkey.keycode, 0, shift);
+        	Input_Event ev;
+            ev.type = Event_Type::KEYBOARD;
+            ev.down = false;
+            ev.key = (keysym == XK_Control_L) ? Key_Type::LCONTROL : (Key_Type)-1;
+            ev.window = event.xkey.window;
+
+            if (ev.key == -1) continue;
+            input_events.add(ev);
         }
 	}
 

@@ -28,11 +28,27 @@ static Image *load_image(const char *path) {
 	return im;
 }
 
+union Color {
+	u32 color = 0xFF00FF00;
+	struct {
+		u8 r;
+		u8 g;
+		u8 b;
+		u8 a;
+	};
+};
+
 struct Editor_Window {
 	OS_Window os_window;
 	OS_GL_Context os_gl_context;
 
+	bool is_dirty = true;
 	bool mouse_button_left = false;
+	bool lcontrol = false;
+
+	int tile_spacing = 16;
+
+	Color color;
 
 	// starting x,y of the image editing area
 	int image_x = 400;
@@ -83,33 +99,52 @@ static void draw_quad(float x, float y, float width, float height, float scale) 
 	glEnd();
 }
 
-static void draw_grid(float x, float y, int width, int height, float scale) {
+
+static void draw_quad_lines(float x, float y, float width, float height, float scale) {
+	float w = width * scale;
+	float h = height * scale;
+	glBegin(GL_LINES);
+	glVertex2f(x, y);
+	glVertex2f(x+w, y);
+
+	glVertex2f(x, y);
+	glVertex2f(x, y+h);
+
+
+	glVertex2f(x+w, y);
+	glVertex2f(x+w, y+h);
+
+	glVertex2f(x, y+h);
+	glVertex2f(x+w, y+h);
+	
+	glEnd();
+}
+
+static void draw_grid(float x, float y, int width, int height, float scale, int spacing) {
 	glDisable(GL_TEXTURE_2D);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	glColor4f(0.0, 0, 0, 0.5);
 	glBegin(GL_LINES);
 	float h = height*scale;
 	float w = width*scale;
-	for (int i = 0; i <= width; ++i) {
-		glVertex2f(x + (i*scale), y);
-		glVertex2f(x + (i*scale), y + h);
+	for (int i = 0; i <= (width / spacing); ++i) {
+		glVertex2f(x + (i*spacing*scale), y);
+		glVertex2f(x + (i*spacing*scale), y + h);
 	}
 
-	for (int i = 0; i <= height; ++i) {
-		glVertex2f(x, y + (i*scale));
-		glVertex2f(x+w, y + (i*scale));
+	for (int i = 0; i <= (height / spacing); ++i) {
+		glVertex2f(x, y + (i*spacing*scale));
+		glVertex2f(x+w, y + (i*spacing*scale));
 	}
 
 	glEnd();
-
-	glColor4f(1, 1, 1, 1);
 	glEnable(GL_TEXTURE_2D);
 	glDisable(GL_BLEND);
 }
 
 static void draw(Editor_Window *ed) {
-	os_make_current(ed->os_window, ed->os_gl_context);
+	if (!ed->is_dirty) return;
+	// os_make_current(ed->os_window, ed->os_gl_context);
 	s32 w, h;
 	os_get_window_dimensions(ed->os_window, &w, &h);
 	glViewport(0, 0, w, h);
@@ -129,9 +164,29 @@ static void draw(Editor_Window *ed) {
 		glBindTexture(GL_TEXTURE_2D, im->texID);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, im->width, im->height, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
 		draw_quad(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale);
-		if (ed->image_scale > 1.0) draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale);
+		if (ed->image_scale > 1.0) {
+			glColor4f(0.2, 0.2, 0.2, 0.5);
+			glLineWidth(1.0);
+			draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, 1);
+			glColor4f(0.0, 0.0, 0.0, 1.0);
+			// glLineWidth(1.5);
+			draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, ed->tile_spacing);
+			glColor4f(1, 1, 1, 1);
+		}
 	}
 
+	s32 color_bar_y = h - 40;
+	glDisable(GL_TEXTURE_2D);
+	Color col = ed->color;
+	glColor4ub(col.r, col.g, col.b, col.a);
+	draw_quad(10, color_bar_y, 150, 30, 1.0);
+	glColor4f(0, 0, 0, 1);
+	glLineWidth(2.0);
+	draw_quad_lines(10, color_bar_y, 150, 30, 1.0);
+	glLineWidth(1.0);
+	glColor4f(1, 1, 1, 1);
+
+	glFinish();
 	os_swap_buffers(ed->os_window);
 }
 
@@ -155,18 +210,35 @@ bool get_pixel_pointed_at(Editor_Window *ed, s32 cursor_x, s32 cursor_y, s32 *px
 	return true;
 }
 
+inline void write_color_to(char *data, Color color) {
+	u32 *udata = (u32 *)data;
+	*udata = color.color;
+}
+
+inline Color get_color_from(char *data) {
+	u32 *udata = (u32 *)data;
+	Color c;
+	c.color = *udata;
+	return c;
+}
+
 static void update(Editor_Window *ed) {
+	ed->is_dirty = false;
 
 	s32 cx, cy;
 	if (os_get_mouse_position(ed->os_window, &cx, &cy)) {
 		s32 px = 0, py = 0;
-		if (get_pixel_pointed_at(ed, cx, cy, &px, &py) && ed->mouse_button_left) {
+		bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
+		if (success && !ed->lcontrol && ed->mouse_button_left) {
 			char *data = ed->image->data;
 			data = data + ((px + py*ed->image->width) * 4);
-			data[0] = 255;
-			data[1] = 0;
-			data[2] = 0;
-			data[3] = 255;
+			write_color_to(data, ed->color);
+			ed->is_dirty = true;
+		} else if (success && ed->lcontrol && ed->mouse_button_left) {
+			char *data = ed->image->data;
+			data = data + ((px + py*ed->image->width) * 4);
+			ed->color = get_color_from(data);
+			ed->is_dirty = true;
 		}
 	}
 }
@@ -201,17 +273,25 @@ int main(int argc, char **argv) {
 						ed->mouse_button_left = ev.down;
 					}
 				}
+			} else if (ev.type == Event_Type::KEYBOARD) {
+				Editor_Window *ed = get_editor_for_window(windows, ev.window);
+				if (ed) {
+					if (ev.key == Key_Type::LCONTROL) {
+						ed->lcontrol = ev.down;
+					}
+				}
 			}
 		}
 
 		if (os_number_open_windows() == 0) break;
 
-		os_pump_input();
 		for (int i = 0; i < windows.count; ++i) {
 			Editor_Window *win = windows[i];
-			update(win);
 			draw(win);
+			update(win);
 		}
+
+		os_pump_input();
 	}
 
 	return 0;
