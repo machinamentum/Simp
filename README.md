@@ -5,10 +5,10 @@ A WIP simple X11 pixel art editor. I could not find a simple editor that let me 
 Not in a usable state yet!
 
 ### Build
-'''
+```
 cmake .
 make
-'''
+```
 
 ### Usage
-'simp <filename>'
+`simp <filename>`
