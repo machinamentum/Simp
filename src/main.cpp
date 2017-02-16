@@ -35,7 +35,7 @@ struct Editor_Window {
 	// starting x,y of the image editing area
 	int image_x = 600;
 	int image_y = 200;
-	float image_scale = 1.0;
+	float image_scale = 16.0;
 	Image *image = nullptr;
 };
 
@@ -57,9 +57,9 @@ Editor_Window *create_editor_window(Array<Editor_Window *> &wins) {
 	return editor;
 }
 
-static void draw_quad(float x, float y, float w, float h, float scale) {
-	w *= scale;
-	h *= scale;
+static void draw_quad(float x, float y, float width, float height, float scale) {
+	float w = width * scale;
+	float h = height * scale;
 	glBegin(GL_QUADS);
 	glTexCoord2f(0, 0);
 	glVertex2f(x, y);
@@ -70,6 +70,32 @@ static void draw_quad(float x, float y, float w, float h, float scale) {
 	glTexCoord2f(0, 1);
 	glVertex2f(x, y+h);
 	glEnd();
+}
+
+static void draw_grid(float x, float y, int width, int height, float scale) {
+
+	glDisable(GL_TEXTURE_2D);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	glColor4f(0.0, 0, 0, 0.5);
+	glBegin(GL_LINES);
+	float h = height*scale;
+	float w = width*scale;
+	for (int i = 0; i <= width; ++i) {
+		glVertex2f(x + (i*scale), y);
+		glVertex2f(x + (i*scale), y + h);
+	}
+
+	for (int i = 0; i <= height; ++i) {
+		glVertex2f(x, y + (i*scale));
+		glVertex2f(x+w, y + (i*scale));
+	}
+
+	glEnd();
+
+	glColor4f(1, 1, 1, 1);
+	glEnable(GL_TEXTURE_2D);
+	glDisable(GL_BLEND);
 }
 
 static void draw(Editor_Window *ed) {
@@ -93,6 +119,7 @@ static void draw(Editor_Window *ed) {
 		glBindTexture(GL_TEXTURE_2D, im->texID);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, im->width, im->height, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
 		draw_quad(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale);
+		if (ed->image_scale > 1.0) draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale);
 	}
 
 	os_swap_buffers(ed->os_window);
