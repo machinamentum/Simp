@@ -101,6 +101,7 @@ struct Input_Event {
 	OS_Window window;
 
 	Button_Type button;
+	int x, y;
 	Key_Type key;
 	bool down;
 };

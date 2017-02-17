@@ -110,8 +110,12 @@ void os_pump_input() {
             ev.window = event.xbutton.window;
             auto button = event.xbutton.button;
             ev.down = true;
+            ev.x = event.xbutton.x;
+            ev.y = event.xbutton.y;
             if (button == Button1) {
             	ev.button = Button_Type::MOUSE_LEFT;
+            } else if (button == Button2) {
+            	ev.button = Button_Type::MOUSE_MIDDLE;
             } else if (button == Button3) {
             	ev.button = Button_Type::MOUSE_RIGHT;
             } else if (button == Button4) {
@@ -129,10 +133,14 @@ void os_pump_input() {
         	Input_Event ev;
             ev.type = Event_Type::MOUSE_BUTTON;
             ev.window = event.xbutton.window;
+            ev.x = event.xbutton.x;
+            ev.y = event.xbutton.y;
 
             auto button = event.xbutton.button;
             if (button == Button1) {
             	ev.button = Button_Type::MOUSE_LEFT;
+            } else if (button == Button2) {
+            	ev.button = Button_Type::MOUSE_MIDDLE;
             } else if (button == Button3) {
             	ev.button = Button_Type::MOUSE_RIGHT;
             } else {

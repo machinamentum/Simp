@@ -44,6 +44,8 @@ struct Editor_Window {
 
 	bool is_dirty = true;
 	bool mouse_button_left = false;
+	bool drag_image = false;
+	int  drag_image_x, drag_image_y; // start position of the drag in pixels so we know how much to translate
 	bool lcontrol = false;
 
 	int tile_spacing = 16;
@@ -228,6 +230,19 @@ static void update(Editor_Window *ed) {
 
 	s32 cx, cy;
 	if (os_get_mouse_position(ed->os_window, &cx, &cy)) {
+		if (ed->drag_image) {
+			if (cx != ed->drag_image_x) {
+				ed->image_x += (cx - ed->drag_image_x);
+				ed->drag_image_x = cx;
+				ed->is_dirty = true;
+			}
+			if (cy != ed->drag_image_y) {
+				ed->image_y += (cy - ed->drag_image_y);
+				ed->drag_image_y = cy;
+				ed->is_dirty = true;
+			}
+			return;
+		}
 		s32 px = 0, py = 0;
 		bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
 		if (success && !ed->lcontrol && ed->mouse_button_left) {
@@ -250,6 +265,7 @@ static void zoom_editor_one_tick(Editor_Window *ed, bool down) {
 	} else {
 		ed->image_scale *= 2.0;
 	}
+	if (ed->image_scale < 0.5) ed->image_scale = 0.5;
 	ed->is_dirty = true;
 }
 
@@ -283,7 +299,11 @@ int main(int argc, char **argv) {
 						ed->mouse_button_left = ev.down;
 					} else if (ev.button == Button_Type::MOUSE_SCROLL) {
 						zoom_editor_one_tick(ed, ev.down);
-					} 
+					} else if (ev.button == Button_Type::MOUSE_MIDDLE) {
+						ed->drag_image = ev.down;
+						ed->drag_image_x = ev.x;
+						ed->drag_image_y = ev.y;
+					}
 				}
 			} else if (ev.type == Event_Type::KEYBOARD) {
 				Editor_Window *ed = get_editor_for_window(windows, ev.window);
