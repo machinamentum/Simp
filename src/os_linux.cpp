@@ -150,15 +150,20 @@ void os_pump_input() {
            	ev.down = false;
            	input_events.add(ev);
         }  else if (event.type == KeyPress) {
-        	u32 shift = (event.xkey.state & ShiftMask) != 0;
-        	auto keysym = XkbKeycodeToKeysym(global_display, event.xkey.keycode, 0, shift);
+        	// u32 shift = (event.xkey.state & ShiftMask) != 0;
+        	auto keysym = XkbKeycodeToKeysym(global_display, event.xkey.keycode, 0, 1);
         	Input_Event ev;
             ev.type = Event_Type::KEYBOARD;
             ev.down = true;
-            ev.key = (keysym == XK_Control_L) ? Key_Type::LCONTROL : (Key_Type)-1;
+            if (keysym == XK_Control_L) {
+            	ev.key = Key_Type::LCONTROL;
+            } else if (keysym == XK_S) {
+            	ev.key = Key_Type::KEY_S;
+            } else {
+            	continue;
+            }
+            ev.mod = (event.xkey.state & ControlMask) ? Key_Type::LCONTROL : (Key_Type)-1;
             ev.window = event.xkey.window;
-
-            if (ev.key == -1) continue;
             input_events.add(ev);
         } else if (event.type == KeyRelease) {
         	if (XEventsQueued(global_display, QueuedAfterReading)) {
@@ -172,15 +177,19 @@ void os_pump_input() {
         		}
         	}
 
-        	u32 shift = (event.xkey.state & ShiftMask) != 0;
-        	auto keysym = XkbKeycodeToKeysym(global_display, event.xkey.keycode, 0, shift);
+        	// u32 shift = (event.xkey.state & ShiftMask) != 0;
+        	auto keysym = XkbKeycodeToKeysym(global_display, event.xkey.keycode, 0, 1);
         	Input_Event ev;
             ev.type = Event_Type::KEYBOARD;
             ev.down = false;
-            ev.key = (keysym == XK_Control_L) ? Key_Type::LCONTROL : (Key_Type)-1;
+            if (keysym == XK_Control_L) {
+            	ev.key = Key_Type::LCONTROL;
+            } else if (keysym == XK_S) {
+            	ev.key = Key_Type::KEY_S;
+            } else {
+            	continue;
+            }
             ev.window = event.xkey.window;
-
-            if (ev.key == -1) continue;
             input_events.add(ev);
         }
 	}

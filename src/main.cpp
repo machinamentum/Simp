@@ -1,6 +1,7 @@
 #include "os_api.h"
 #include <GL/gl.h>
 #include "stb_image.h"
+#include "stb_image_write.h"
 
 struct Image {
 	// in pixels
@@ -10,6 +11,8 @@ struct Image {
 
 	char *data; // length is width*height*4, no stride
 	GLuint texID;
+
+	char *path;
 };
 
 static Image *load_image(const char *path) {
@@ -25,6 +28,7 @@ static Image *load_image(const char *path) {
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	im->path = (char *)path;
 	return im;
 }
 
@@ -259,6 +263,13 @@ static void update(Editor_Window *ed) {
 	}
 }
 
+// int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
+static void write_image_to_disk(Image *im) {
+	if (stbi_write_png(im->path, im->width, im->height, 4, im->data, im->width * 4)) {
+		printf("Saved image to %s\n", im->path);
+	}
+}
+
 static void zoom_editor_one_tick(Editor_Window *ed, s32 x, s32 y, bool down) {
 	float start_scale = ed->image_scale;
 	s32 diff_x = ed->image_x-x;
@@ -320,6 +331,8 @@ int main(int argc, char **argv) {
 				if (ed) {
 					if (ev.key == Key_Type::LCONTROL) {
 						ed->lcontrol = ev.down;
+					} else if (ev.key == Key_Type::KEY_S && ev.mod == Key_Type::LCONTROL) {
+						write_image_to_disk(ed->image);
 					}
 				}
 			}

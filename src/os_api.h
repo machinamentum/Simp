@@ -93,7 +93,8 @@ enum Button_Type {
 
 enum Key_Type {
 	NONE,
-	LCONTROL
+	LCONTROL,
+	KEY_S
 };
 
 struct Input_Event {
@@ -103,6 +104,7 @@ struct Input_Event {
 	Button_Type button;
 	int x, y;
 	Key_Type key;
+	Key_Type mod;
 	bool down;
 };
 
