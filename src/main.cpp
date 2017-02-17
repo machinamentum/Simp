@@ -259,13 +259,23 @@ static void update(Editor_Window *ed) {
 	}
 }
 
-static void zoom_editor_one_tick(Editor_Window *ed, bool down) {
+static void zoom_editor_one_tick(Editor_Window *ed, s32 x, s32 y, bool down) {
+	float start_scale = ed->image_scale;
+	s32 diff_x = ed->image_x-x;
+	s32 diff_y = ed->image_y-y;
+	// it took me awhile to interalize this:
+	// if our corner is -32,-32 from the mouse point, then by 2x zoom, the corner would be pushed out to -64,-64
+	// we only need add the diff between -64,-64 which is still -32,-32 so we add that to image_* to adjust it to the -64,-64 point
+	// on zoom out the target becomes -16,-16 so we divide by -2 to give us 16,16 pixels -towards- the mouse
 	if (down) {
 		ed->image_scale *= 0.5;
+		diff_x /= -2;
+		diff_y /= -2;
 	} else {
 		ed->image_scale *= 2.0;
 	}
-	if (ed->image_scale < 0.5) ed->image_scale = 0.5;
+	ed->image_x += diff_x;
+	ed->image_y += diff_y;
 	ed->is_dirty = true;
 }
 
@@ -298,7 +308,7 @@ int main(int argc, char **argv) {
 					if (ev.button == Button_Type::MOUSE_LEFT) {
 						ed->mouse_button_left = ev.down;
 					} else if (ev.button == Button_Type::MOUSE_SCROLL) {
-						zoom_editor_one_tick(ed, ev.down);
+						zoom_editor_one_tick(ed, ev.x, ev.y, ev.down);
 					} else if (ev.button == Button_Type::MOUSE_MIDDLE) {
 						ed->drag_image = ev.down;
 						ed->drag_image_x = ev.x;
