@@ -42,6 +42,12 @@ union Color {
 	};
 };
 
+struct Region_Selection {
+	// in image pixel coords
+	int x, y;
+	int w, h;
+};
+
 struct Editor_Window {
 	OS_Window os_window;
 	OS_GL_Context os_gl_context;
@@ -51,6 +57,9 @@ struct Editor_Window {
 	bool drag_image = false;
 	int  drag_image_x, drag_image_y; // start position of the drag in pixels so we know how much to translate
 	bool lcontrol = false;
+
+	int select_mode = 0; // 0: not selecting; 1: starting selection; 2: ending selection
+	Region_Selection selection;
 
 	int tile_spacing = 16;
 
@@ -182,8 +191,13 @@ static void draw(Editor_Window *ed) {
 		glColor4f(1, 1, 1, 1);
 	}
 
-	s32 color_bar_y = h - 40;
 	glDisable(GL_TEXTURE_2D);
+	Region_Selection &sel = ed->selection;
+	glColor4f(1.0, 0.0, 0.0, 0.5);
+	glLineWidth(3.0);
+	draw_quad_lines(ed->image_x + sel.x*ed->image_scale, ed->image_y + sel.y*ed->image_scale, sel.w, sel.h, ed->image_scale);
+
+	s32 color_bar_y = h - 40;
 	Color col = ed->color;
 	glColor4ub(col.r, col.g, col.b, col.a);
 	draw_quad(10, color_bar_y, 150, 30, 1.0);
@@ -229,6 +243,15 @@ inline Color get_color_from(char *data) {
 	return c;
 }
 
+inline bool point_in_region(Region_Selection *sel, int px, int py) {
+	int x = sel->x;
+	int y = sel->y;
+	int w = sel->w;
+	int h = sel->h;
+
+	return !((px < x || px >= (x+w)) || (py < y || py >= (y+h)));
+}
+
 static void update(Editor_Window *ed) {
 	ed->is_dirty = false;
 
@@ -252,7 +275,7 @@ static void update(Editor_Window *ed) {
 		if (success && !ed->lcontrol && ed->mouse_button_left) {
 			char *data = ed->image->data;
 			data = data + ((px + py*ed->image->width) * 4);
-			write_color_to(data, ed->color);
+			if (point_in_region(&ed->selection, px, py)) write_color_to(data, ed->color);
 			ed->is_dirty = true;
 		} else if (success && ed->lcontrol && ed->mouse_button_left) {
 			char *data = ed->image->data;
@@ -306,6 +329,10 @@ int main(int argc, char **argv) {
 		printf("Couldn't load image: %s\n", argv[1]);
 		return -1;
 	}
+	ed->selection.x = 0;
+	ed->selection.y = 0;
+	ed->selection.w = ed->image->width;
+	ed->selection.h = ed->image->height;
 
 	while (true) {
 		for (int i = 0; i < input_events.count; ++i) {
