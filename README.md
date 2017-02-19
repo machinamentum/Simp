@@ -8,6 +8,7 @@ A WIP simple X11 pixel art editor. I could not find a simple editor that let me 
  * Left-control-S - saves.
  * scroll-wheel-button - drag the canvas
  * scroll-wheel - zoom in/out
+ * S then left-click (hold) - region select
 
 ### Build
 ```

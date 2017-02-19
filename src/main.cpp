@@ -44,9 +44,13 @@ union Color {
 
 struct Region_Selection {
 	// in image pixel coords
-	int x, y;
-	int w, h;
+	int x0, y0;
+	int x1, y1;
 };
+
+const int BEGIN_SELECTION = 2;
+const int END_SELECTION = 1;
+const int NOT_SELECTING = 0;
 
 struct Editor_Window {
 	OS_Window os_window;
@@ -58,7 +62,7 @@ struct Editor_Window {
 	int  drag_image_x, drag_image_y; // start position of the drag in pixels so we know how much to translate
 	bool lcontrol = false;
 
-	int select_mode = 0; // 0: not selecting; 1: starting selection; 2: ending selection
+	int select_mode = 0; // 2: starting selection; 1: ending selection; 0: not selecting
 	Region_Selection selection;
 
 	int tile_spacing = 16;
@@ -195,8 +199,11 @@ static void draw(Editor_Window *ed) {
 	Region_Selection &sel = ed->selection;
 	glColor4f(1.0, 0.0, 0.0, 0.5);
 	glLineWidth(3.0);
-	draw_quad_lines(ed->image_x + sel.x*ed->image_scale, ed->image_y + sel.y*ed->image_scale, sel.w, sel.h, ed->image_scale);
-
+	{
+		int w = sel.x1-sel.x0;
+		int h = sel.y1-sel.y0;
+		draw_quad_lines(ed->image_x + sel.x0*ed->image_scale, ed->image_y + sel.y0*ed->image_scale, w, h, ed->image_scale);
+	}
 	s32 color_bar_y = h - 40;
 	Color col = ed->color;
 	glColor4ub(col.r, col.g, col.b, col.a);
@@ -223,8 +230,8 @@ bool get_pixel_pointed_at(Editor_Window *ed, s32 cursor_x, s32 cursor_y, s32 *px
 	s32 ox = (s32)(cursor_x * inv_scale);
 	s32 oy = (s32)(cursor_y * inv_scale);
 
-	if (ox >= ed->image->width) return false;
-	if (oy >= ed->image->height) return false;
+	if (ox > ed->image->width) return false;
+	if (oy > ed->image->height) return false;
 
 	*px = ox;
 	*py = oy;
@@ -244,12 +251,12 @@ inline Color get_color_from(char *data) {
 }
 
 inline bool point_in_region(Region_Selection *sel, int px, int py) {
-	int x = sel->x;
-	int y = sel->y;
-	int w = sel->w;
-	int h = sel->h;
+	int x0 = sel->x0;
+	int y0 = sel->y0;
+	int x1 = sel->x1;
+	int y1 = sel->y1;
 
-	return !((px < x || px >= (x+w)) || (py < y || py >= (y+h)));
+	return !((px < x0 || px >= x1) || (py < y0 || py >= y1));
 }
 
 static void update(Editor_Window *ed) {
@@ -257,6 +264,53 @@ static void update(Editor_Window *ed) {
 
 	s32 cx, cy;
 	if (os_get_mouse_position(ed->os_window, &cx, &cy)) {
+		s32 px = 0, py = 0;
+		if (ed->select_mode == BEGIN_SELECTION && ed->mouse_button_left) {
+			if (cx < ed->image_x) cx = ed->image_x;
+			if (cx >= (ed->image_x+(ed->image->width*ed->image_scale))) cx = ed->image_x+((ed->image->width)*ed->image_scale);
+			if (cy < ed->image_y) cy = ed->image_y;
+			if (cy >= (ed->image_y+(ed->image->height*ed->image_scale))) cy = ed->image_y+((ed->image->height)*ed->image_scale);
+			bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
+			printf("p: %d:%d, %d:%d\n", cx, cy, ed->image_x, ed->image_y);
+			assert(success);
+
+			ed->selection.x0 = px;
+			ed->selection.y0 = py;
+			ed->selection.x1 = px;
+			ed->selection.y1 = py;
+
+			ed->select_mode = END_SELECTION;
+
+			ed->is_dirty = true;
+			return;
+		}
+		if (ed->select_mode == END_SELECTION) {
+			if (cx < ed->image_x) cx = ed->image_x;
+			if (cx >= (ed->image_x+(ed->image->width*ed->image_scale))) cx = ed->image_x+((ed->image->width)*ed->image_scale);
+			if (cy < ed->image_y) cy = ed->image_y;
+			if (cy >= (ed->image_y+(ed->image->height*ed->image_scale))) cy = ed->image_y+((ed->image->height)*ed->image_scale);
+			bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
+			assert(success);
+			ed->selection.x1 = px;
+			ed->selection.y1 = py;
+
+			if (!ed->mouse_button_left) {
+				ed->select_mode = NOT_SELECTING;
+				if (ed->selection.x1 <= ed->selection.x0) {
+					int i = ed->selection.x1;
+					ed->selection.x1 = ed->selection.x0; 
+					ed->selection.x0 = i;
+				}
+				if (ed->selection.y1 <= ed->selection.y0) {
+					int i = ed->selection.y1;
+					ed->selection.y1 = ed->selection.y0; 
+					ed->selection.y0 = i;
+				}
+			}
+
+			ed->is_dirty = true;
+			return;
+		}
 		if (ed->drag_image) {
 			if (cx != ed->drag_image_x) {
 				ed->image_x += (cx - ed->drag_image_x);
@@ -270,7 +324,6 @@ static void update(Editor_Window *ed) {
 			}
 			return;
 		}
-		s32 px = 0, py = 0;
 		bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
 		if (success && !ed->lcontrol && ed->mouse_button_left) {
 			char *data = ed->image->data;
@@ -329,10 +382,10 @@ int main(int argc, char **argv) {
 		printf("Couldn't load image: %s\n", argv[1]);
 		return -1;
 	}
-	ed->selection.x = 0;
-	ed->selection.y = 0;
-	ed->selection.w = ed->image->width;
-	ed->selection.h = ed->image->height;
+	ed->selection.x0 = 0;
+	ed->selection.y0 = 0;
+	ed->selection.x1 = ed->image->width;
+	ed->selection.y1 = ed->image->height;
 
 	while (true) {
 		for (int i = 0; i < input_events.count; ++i) {
@@ -360,6 +413,8 @@ int main(int argc, char **argv) {
 						ed->lcontrol = ev.down;
 					} else if (ev.key == Key_Type::KEY_S && ev.mod == Key_Type::LCONTROL) {
 						write_image_to_disk(ed->image);
+					} else if (ev.key == Key_Type::KEY_S) {
+						ed->select_mode = BEGIN_SELECTION;
 					}
 				}
 			}
