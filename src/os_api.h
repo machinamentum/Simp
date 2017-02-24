@@ -94,7 +94,8 @@ enum Button_Type {
 enum Key_Type {
 	NONE,
 	LCONTROL,
-	KEY_S
+	KEY_S,
+	KEY_T,
 };
 
 struct Input_Event {

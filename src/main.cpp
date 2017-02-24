@@ -67,6 +67,9 @@ struct Editor_Window {
 
 	int tile_spacing = 16;
 
+	// UI toggles
+	bool show_mini_map = true;
+
 	Color color;
 
 	// starting x,y of the image editing area
@@ -178,8 +181,9 @@ static void draw(Editor_Window *ed) {
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
+	Image *im = ed->image;
+
 	if (ed->image) {
-		Image *im = ed->image;
 		glBindTexture(GL_TEXTURE_2D, im->texID);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, im->width, im->height, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
 		draw_quad(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale);
@@ -204,6 +208,7 @@ static void draw(Editor_Window *ed) {
 		int h = sel.y1-sel.y0;
 		draw_quad_lines(ed->image_x + sel.x0*ed->image_scale, ed->image_y + sel.y0*ed->image_scale, w, h, ed->image_scale);
 	}
+
 	s32 color_bar_y = h - 40;
 	Color col = ed->color;
 	glColor4ub(col.r, col.g, col.b, col.a);
@@ -211,8 +216,23 @@ static void draw(Editor_Window *ed) {
 	glColor4f(0, 0, 0, 1);
 	glLineWidth(2.0);
 	draw_quad_lines(10, color_bar_y, 150, 30, 1.0);
-	glLineWidth(1.0);
 	glColor4f(1, 1, 1, 1);
+
+	if (im && ed->show_mini_map) {
+		glEnable(GL_TEXTURE_2D);
+		glBindTexture(GL_TEXTURE_2D, im->texID);
+		float aspect = (float) im->width / (float) im->height;
+		const float default_minimap_height = 240.0f;
+		float mmwidth = default_minimap_height * aspect;
+		draw_quad((w - mmwidth) - 10, 10, mmwidth, default_minimap_height, 1);
+
+		glColor4f(0, 0, 0, 1);
+		glDisable(GL_TEXTURE_2D);
+		draw_quad_lines((w - mmwidth) - 10, 10, mmwidth, default_minimap_height, 1);
+		glColor4f(1, 1, 1, 1);
+	}
+
+	glLineWidth(1.0);
 
 	glFinish();
 	os_swap_buffers(ed->os_window);
@@ -411,10 +431,13 @@ int main(int argc, char **argv) {
 				if (ed) {
 					if (ev.key == Key_Type::LCONTROL) {
 						ed->lcontrol = ev.down;
-					} else if (ev.key == Key_Type::KEY_S && ev.mod == Key_Type::LCONTROL) {
+					} else if (ev.key == Key_Type::KEY_S && ev.mod == Key_Type::LCONTROL && ev.down) {
 						write_image_to_disk(ed->image);
-					} else if (ev.key == Key_Type::KEY_S) {
+					} else if (ev.key == Key_Type::KEY_S && ev.down) {
 						ed->select_mode = BEGIN_SELECTION;
+					} else if (ev.key == Key_Type::KEY_T && ev.down) {
+						ed->show_mini_map = !ed->show_mini_map;
+						ed->is_dirty = true;
 					}
 				}
 			}

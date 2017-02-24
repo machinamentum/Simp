@@ -156,11 +156,13 @@ void os_pump_input() {
             ev.type = Event_Type::KEYBOARD;
             ev.down = true;
             if (keysym == XK_Control_L) {
-            	ev.key = Key_Type::LCONTROL;
+                ev.key = Key_Type::LCONTROL;
             } else if (keysym == XK_S) {
-            	ev.key = Key_Type::KEY_S;
+                ev.key = Key_Type::KEY_S;
+            } else if (keysym == XK_T) {
+                ev.key = Key_Type::KEY_T;
             } else {
-            	continue;
+                continue;
             }
             ev.mod = (event.xkey.state & ControlMask) ? Key_Type::LCONTROL : (Key_Type)-1;
             ev.window = event.xkey.window;
@@ -186,6 +188,8 @@ void os_pump_input() {
             	ev.key = Key_Type::LCONTROL;
             } else if (keysym == XK_S) {
             	ev.key = Key_Type::KEY_S;
+            } else if (keysym == XK_T) {
+                ev.key = Key_Type::KEY_T;
             } else {
             	continue;
             }
