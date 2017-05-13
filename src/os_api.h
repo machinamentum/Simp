@@ -59,7 +59,9 @@ struct Array {
 
 
 #ifdef WIN32
+#include <Windows.h>
 typedef HWND OS_Window;
+typedef HGLRC OS_GL_Context;
 #else
 #include <X11/X.h>
 #include <GL/glx.h>
