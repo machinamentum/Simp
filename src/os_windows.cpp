@@ -1,12 +1,15 @@
 
 #include "os_api.h"
+#include <Windowsx.h>
 
 static bool initialized = false;
 static WNDCLASS wndclass {0};
 static s32 num_open_windows = 0;
+static s32 accum_wheel_delta = 0;
 
 Array<Input_Event> input_events;
 
+#include <cstdio>
 LRESULT CALLBACK wnd_proc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	switch (message) {
 		// case WM_CREATE:
@@ -17,6 +20,95 @@ LRESULT CALLBACK wnd_proc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             ev.window = hWnd;
             input_events.add(ev);
 			break;
+		case WM_SYSKEYUP:
+		case WM_KEYUP:
+		case WM_SYSKEYDOWN:
+		case WM_KEYDOWN: {
+			if (lParam & (1 << 30) && ((lParam & (1 << 31)) == 0)) break; // skip repeats
+			u32 vkcode = wParam;
+        	Input_Event ev;
+            ev.type = Event_Type::KEYBOARD;
+            ev.down = (lParam & (1 << 31)) == 0;
+            if (vkcode == VK_CONTROL) {
+                ev.key = Key_Type::LCONTROL;
+            } else if (vkcode == 'S') {
+                ev.key = Key_Type::KEY_S;
+            } else if (vkcode == 'T') {
+                ev.key = Key_Type::KEY_T;
+            } else {
+                break;
+            }
+            ev.mod = (GetKeyState(VK_CONTROL) & (1 << 15)) ? Key_Type::LCONTROL : (Key_Type)-1;
+            ev.window = hWnd;
+            input_events.add(ev);
+			break;
+		}
+
+		case WM_LBUTTONDOWN:
+		case WM_LBUTTONUP: {
+			Input_Event ev;
+            ev.type = Event_Type::MOUSE_BUTTON;
+            ev.window = hWnd;
+            ev.down = (wParam & MK_LBUTTON) != 0;
+            ev.button = Button_Type::MOUSE_LEFT;
+            ev.x = GET_X_LPARAM(lParam);
+            ev.y = GET_Y_LPARAM(lParam);
+
+           	input_events.add(ev);
+			break;
+		}
+		case WM_MBUTTONDOWN:
+		case WM_MBUTTONUP: {
+			Input_Event ev;
+            ev.type = Event_Type::MOUSE_BUTTON;
+            ev.window = hWnd;
+            ev.down = (wParam & MK_MBUTTON) != 0;
+            ev.button = Button_Type::MOUSE_MIDDLE;
+            ev.x = GET_X_LPARAM(lParam);
+            ev.y = GET_Y_LPARAM(lParam);
+
+           	input_events.add(ev);
+			break;
+		}
+		case WM_RBUTTONDOWN:
+		case WM_RBUTTONUP: {
+			Input_Event ev;
+            ev.type = Event_Type::MOUSE_BUTTON;
+            ev.window = hWnd;
+            ev.down = (wParam & MK_RBUTTON) != 0;
+            ev.button = Button_Type::MOUSE_RIGHT;
+            ev.x = GET_X_LPARAM(lParam);
+            ev.y = GET_Y_LPARAM(lParam);
+
+           	input_events.add(ev);
+			break;
+		}
+
+		case WM_MOUSEWHEEL: {
+			Input_Event ev;
+            ev.type = Event_Type::MOUSE_BUTTON;
+            ev.window = hWnd;
+            ev.button = Button_Type::MOUSE_SCROLL;
+            ev.x = GET_X_LPARAM(lParam);
+            ev.y = GET_Y_LPARAM(lParam);
+
+            auto zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+            if (zDelta < 0) {
+            	ev.down = true;
+            } else {
+            	ev.down = false;
+            }
+
+            accum_wheel_delta += zDelta;
+
+            while (accum_wheel_delta < -WHEEL_DELTA || accum_wheel_delta > WHEEL_DELTA) {
+            	accum_wheel_delta /= WHEEL_DELTA;
+            	input_events.add(ev);
+            }
+
+			break;
+		}
+
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
 	}
@@ -24,12 +116,12 @@ LRESULT CALLBACK wnd_proc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-#include <cstdio>
 OS_Window os_create_window(s32 width, s32 height, const char *title) {
 	if (!initialized) {
 		initialized = true;
 		wndclass.lpfnWndProc = wnd_proc;
 		wndclass.hInstance = GetModuleHandle(nullptr);
+		wndclass.hCursor = LoadCursor(NULL, IDC_ARROW);
 		wndclass.hbrBackground = (HBRUSH) COLOR_BACKGROUND;
 		wndclass.lpszClassName = "SimpWndClass";
 		wndclass.style = CS_OWNDC;
@@ -78,6 +170,8 @@ s32  os_number_open_windows() {
 }
 
 void os_pump_input() {
+	input_events.clear();
+
 	MSG msg = {0};
 	while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
 		TranslateMessage(&msg);

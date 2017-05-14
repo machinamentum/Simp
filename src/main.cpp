@@ -165,7 +165,7 @@ static void draw_grid(float x, float y, int width, int height, float scale, int 
 }
 
 static void draw(Editor_Window *ed) {
-	if (!ed->is_dirty) return;
+	// if (!ed->is_dirty) return;
 	// os_make_current(ed->os_window, ed->os_gl_context);
 	s32 w, h;
 	os_get_window_dimensions(ed->os_window, &w, &h);
@@ -431,6 +431,7 @@ int main(int argc, char **argv) {
 				if (ed) {
 					if (ev.key == Key_Type::LCONTROL) {
 						ed->lcontrol = ev.down;
+						printf("LCONTROL\n");
 					} else if (ev.key == Key_Type::KEY_S && ev.mod == Key_Type::LCONTROL && ev.down) {
 						write_image_to_disk(ed->image);
 					} else if (ev.key == Key_Type::KEY_S && ev.down) {
