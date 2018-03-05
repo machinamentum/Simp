@@ -79,6 +79,7 @@ void os_pump_input();
 void os_make_current(OS_Window win, OS_GL_Context ctx);
 void os_get_window_dimensions(OS_Window win, s32 *width, s32 *height);
 bool os_get_mouse_position(OS_Window win, s32 *x, s32 *y);
+char *os_open_file_dialog(OS_Window win, bool is_for_save);
 
 enum Event_Type {
 	NO_EVENT,
@@ -110,6 +111,15 @@ struct Input_Event {
 	Key_Type mod;
 	bool down;
 };
+
+#define alloc(x) (malloc(x))
+
+inline char *copy_string(const char *to_copy) {
+	auto len = strlen(to_copy);
+	char *out = static_cast<char *>(alloc(len+1));
+	memcpy(out, to_copy, len+1);
+	return out;
+}
 
 extern Array<Input_Event> input_events;
 

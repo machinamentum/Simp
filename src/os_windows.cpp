@@ -199,3 +199,29 @@ bool os_get_mouse_position(OS_Window win, s32 *x, s32 *y) {
 	*y = (pt.y - rect.top);
 	return true;
 }
+
+
+char *os_open_file_dialog(OS_Window win, bool is_for_save) {
+    char path[MAX_PATH];
+    ZeroMemory(&path, sizeof(path));
+
+    OPENFILENAME ofn = {0};
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.hwndOwner = win;
+    ofn.lpstrFilter = "PNG Files\0*.png\0Any File\0*.*\0";
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrTitle = nullptr;
+    ofn.lpstrDefExt = "png";
+    ofn.Flags = 0;
+    if (is_for_save) {
+        ofn.Flags = OFN_OVERWRITEPROMPT;
+    }
+
+    BOOL result;
+    if (is_for_save) result = GetSaveFileNameA(&ofn);
+    else result = GetOpenFileNameA(&ofn);
+
+    if (!result) return nullptr;
+    return copy_string(path);
+}

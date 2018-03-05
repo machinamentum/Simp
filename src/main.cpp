@@ -23,12 +23,13 @@ static Image *load_image(const char *path) {
 	im->data = data;
 	im->width = w;
 	im->height = h;
+	im->path = (char *)path; // maybe copy here ?
+
 	glGenTextures(1, &im->texID);
 	glBindTexture(GL_TEXTURE_2D, im->texID);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	im->path = (char *)path;
 	return im;
 }
 
@@ -360,7 +361,11 @@ static void update(Editor_Window *ed) {
 }
 
 // int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
-static void write_image_to_disk(Image *im) {
+static void write_image_to_disk(OS_Window win, Image *im) {
+	if (!im->path) {
+		im->path = os_open_file_dialog(win, true);
+		if (!im->path) return;
+	}
 	if (stbi_write_png(im->path, im->width, im->height, 4, im->data, im->width * 4)) {
 		printf("Saved image to %s\n", im->path);
 	}
@@ -388,20 +393,38 @@ static void zoom_editor_one_tick(Editor_Window *ed, s32 x, s32 y, bool down) {
 
 static Array<Editor_Window *> windows;
 
+static Image *generate_default_image() {
+	Image *im = new Image();
+	im->width = 128;
+	im->height = 128;
+	im->data = static_cast<char *>(alloc(im->width * im->height * 4));
+	memset(im->data, 0xFF, im->width * im->height * 4);
+	im->path = nullptr;
+
+	glGenTextures(1, &im->texID);
+	glBindTexture(GL_TEXTURE_2D, im->texID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, im->width, im->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	return im;
+}
+
 int main(int argc, char **argv) {
 
-	if (argc < 2) {
-		printf("Please specify an image file to open.\n");
-		return -1;
-	}
-	
 	Editor_Window *ed = create_editor_window(windows);
 	os_make_current(ed->os_window, ed->os_gl_context);
-	ed->image = load_image(argv[1]);
-	if (!ed->image) {
-		printf("Couldn't load image: %s\n", argv[1]);
-		return -1;
+
+	if (argc < 2) {
+		ed->image = generate_default_image();
+	} else {
+		ed->image = load_image(argv[1]);
+		if (!ed->image) {
+			printf("Couldn't load image: %s\n", argv[1]);
+			return -1;
+		}
+			
 	}
+
 	ed->selection.x0 = 0;
 	ed->selection.y0 = 0;
 	ed->selection.x1 = ed->image->width;
@@ -433,7 +456,7 @@ int main(int argc, char **argv) {
 						ed->lcontrol = ev.down;
 						printf("LCONTROL\n");
 					} else if (ev.key == Key_Type::KEY_S && ev.mod == Key_Type::LCONTROL && ev.down) {
-						write_image_to_disk(ed->image);
+						write_image_to_disk(ed->os_window, ed->image);
 					} else if (ev.key == Key_Type::KEY_S && ev.down) {
 						ed->select_mode = BEGIN_SELECTION;
 					} else if (ev.key == Key_Type::KEY_T && ev.down) {
