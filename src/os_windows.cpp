@@ -185,18 +185,19 @@ void os_make_current(OS_Window win, OS_GL_Context ctx) {
 
 void os_get_window_dimensions(OS_Window win, s32 *width, s32 *height) {
 	RECT rect;
-	GetWindowRect(win, &rect);
+	GetClientRect(win, &rect);
 	*width = (rect.right - rect.left);
 	*height = (rect.bottom - rect.top);
 }
 
 bool os_get_mouse_position(OS_Window win, s32 *x, s32 *y) {
 	RECT rect;
-	GetWindowRect(win, &rect);
+	GetClientRect(win, &rect);
 	POINT pt;
 	GetCursorPos(&pt);
-	*x = (pt.x - rect.left);
-	*y = (pt.y - rect.top);
+    ScreenToClient(win, &pt);
+	*x = (pt.x);
+	*y = (pt.y);
 	return true;
 }
 

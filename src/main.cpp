@@ -53,6 +53,18 @@ const int BEGIN_SELECTION = 2;
 const int END_SELECTION = 1;
 const int NOT_SELECTING = 0;
 
+struct Palette {
+	const static int num_colors = 32;
+	const static int tile_size = 16;
+	Color colors[num_colors];
+
+	// position
+	int x = 0;
+	int y = 0;
+
+	int line_break = 6;
+};
+
 struct Editor_Window {
 	OS_Window os_window;
 	OS_GL_Context os_gl_context;
@@ -72,6 +84,7 @@ struct Editor_Window {
 	bool show_mini_map = true;
 
 	Color color;
+	Palette palette;
 
 	// starting x,y of the image editing area
 	int image_x = 400;
@@ -99,10 +112,56 @@ Editor_Window *get_editor_for_window(Array<Editor_Window *> &wins, OS_Window id)
 	return nullptr;
 }
 
+static Color make_color(u8 r, u8 g, u8 b, u8 a) {
+	Color c;
+	c.r = r;
+	c.g = g;
+	c.b = b;
+	c.a = a;
+	return c;
+}
+
+static void init_default_palette(Palette *p) {
+	// DB32 palette
+	p->colors[0] = make_color(0, 0, 0, 255);
+	p->colors[1] = make_color(34, 32, 52, 255);
+	p->colors[2] = make_color(69, 40, 60, 255);
+	p->colors[3] = make_color(102, 57, 49, 255);
+	p->colors[4] = make_color(143, 86, 59, 255);
+	p->colors[5] = make_color(223, 113, 38, 255);
+	p->colors[6] = make_color(217, 160, 102, 255);
+	p->colors[7] = make_color(238, 195, 154, 255);
+	p->colors[8] = make_color(251, 242, 54, 255);
+	p->colors[9] = make_color(153, 229, 80, 255);
+	p->colors[10] = make_color(106, 190, 48, 255);
+	p->colors[11] = make_color(55, 148, 110, 255);
+	p->colors[12] = make_color(75, 105, 47, 255);
+	p->colors[13] = make_color(82, 75, 36, 255);
+	p->colors[14] = make_color(50, 60, 57, 255);
+	p->colors[15] = make_color(63, 63, 116, 255);
+	p->colors[16] = make_color(48, 96, 130, 255);
+	p->colors[17] = make_color(91, 110, 225, 255);
+	p->colors[18] = make_color(99, 155, 255, 255);
+	p->colors[19] = make_color(95, 205, 228, 255);
+	p->colors[20] = make_color(203, 219, 252, 255);
+	p->colors[21] = make_color(255, 255, 255, 255);
+	p->colors[22] = make_color(155, 173, 183, 255);
+	p->colors[23] = make_color(132, 126, 135, 255);
+	p->colors[24] = make_color(105, 106, 106, 255);
+	p->colors[25] = make_color(89, 86, 82, 255);
+	p->colors[26] = make_color(118, 66, 138, 255);
+	p->colors[27] = make_color(172, 50, 50, 255);
+	p->colors[28] = make_color(217, 87, 99, 255);
+	p->colors[29] = make_color(215, 123, 186, 255);
+	p->colors[30] = make_color(143, 151, 74, 255);
+	p->colors[31] = make_color(138, 111, 48, 255);
+}
+
 Editor_Window *create_editor_window(Array<Editor_Window *> &wins) {
 	Editor_Window *editor = new Editor_Window();
 	editor->os_window = os_create_window(1280, 720, "Simp");
 	editor->os_gl_context = os_create_gl_context(editor->os_window);
+	init_default_palette(&editor->palette);
 	wins.add(editor);
 	return editor;
 }
@@ -233,6 +292,21 @@ static void draw(Editor_Window *ed) {
 		glColor4f(1, 1, 1, 1);
 	}
 
+	{
+		Palette *p = &ed->palette;
+		int tile_size = p->tile_size;
+		for (int i = 0; i < p->num_colors; i++) {
+			int y = p->y + ((i / p->line_break) * tile_size);
+			int x = p->x + ((i % p->line_break) * tile_size);
+
+			Color c = p->colors[i];
+			glColor4ub(c.r, c.g, c.b, c.a);
+			draw_quad(x, y, tile_size, tile_size, 1);
+		}
+
+		glColor4f(1, 1, 1, 1);
+	}
+
 	glLineWidth(1.0);
 
 	glFinish();
@@ -278,6 +352,18 @@ inline bool point_in_region(Region_Selection *sel, int px, int py) {
 	int y1 = sel->y1;
 
 	return !((px < x0 || px >= x1) || (py < y0 || py >= y1));
+}
+
+inline bool is_in_space_occupied_by_pallete(int px, int py, Palette *p) {
+	int x = p->x;
+	int y = p->y;
+
+	int w = p->line_break * p->tile_size;
+	int h = (p->num_colors / p->line_break) * p->tile_size;
+	if (p->num_colors % p->line_break) h += p->tile_size;
+	// printf("%d:%d\n", w, h);
+
+	return px >= x && px < x+w && py >= y && py < y+h;
 }
 
 static void update(Editor_Window *ed) {
@@ -345,6 +431,19 @@ static void update(Editor_Window *ed) {
 			}
 			return;
 		}
+		if (is_in_space_occupied_by_pallete(cx, cy, &ed->palette) && ed->mouse_button_left) {
+			Palette *p = &ed->palette;
+			int tile_size = p->tile_size;
+			int x = (cx - p->x) / tile_size;
+			int y = (cy - p->y) / tile_size;
+
+			int selection = x + (y * p->line_break);
+			// printf("%d\n", selection);
+			if (selection >= p->num_colors) return;
+
+			assert(selection >= 0);
+			ed->color = p->colors[selection];
+		}
 		bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
 		if (success && !ed->lcontrol && ed->mouse_button_left) {
 			char *data = ed->image->data;
@@ -373,6 +472,7 @@ static void write_image_to_disk(OS_Window win, Image *im) {
 
 static void zoom_editor_one_tick(Editor_Window *ed, s32 x, s32 y, bool down) {
 	float start_scale = ed->image_scale;
+	if (start_scale <= 0.5 && down) return;
 	s32 diff_x = ed->image_x-x;
 	s32 diff_y = ed->image_y-y;
 	// it took me awhile to interalize this:
@@ -398,7 +498,7 @@ static Image *generate_default_image() {
 	im->width = 128;
 	im->height = 128;
 	im->data = static_cast<char *>(alloc(im->width * im->height * 4));
-	memset(im->data, 0xFF, im->width * im->height * 4);
+	memset(im->data, 0xFFFFFFFF, im->width * im->height * 4);
 	im->path = nullptr;
 
 	glGenTextures(1, &im->texID);
@@ -454,7 +554,7 @@ int main(int argc, char **argv) {
 				if (ed) {
 					if (ev.key == Key_Type::LCONTROL) {
 						ed->lcontrol = ev.down;
-						printf("LCONTROL\n");
+						// printf("LCONTROL\n");
 					} else if (ev.key == Key_Type::KEY_S && ev.mod == Key_Type::LCONTROL && ev.down) {
 						write_image_to_disk(ed->os_window, ed->image);
 					} else if (ev.key == Key_Type::KEY_S && ev.down) {
