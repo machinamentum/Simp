@@ -49,6 +49,8 @@ struct Region_Selection {
 	int x1, y1;
 };
 
+const int END_MOVE_SELECTED_PIXELS = 4;
+const int BEGIN_MOVE_SELECTED_PIXELS = 3;
 const int BEGIN_SELECTION = 2;
 const int END_SELECTION = 1;
 const int NOT_SELECTING = 0;
@@ -62,21 +64,27 @@ struct Palette {
 	int x = 0;
 	int y = 0;
 
-	int line_break = 6;
+	int line_break = 8;
 };
 
 struct Editor_Window {
 	OS_Window os_window;
 	OS_GL_Context os_gl_context;
-
+ 
 	bool is_dirty = true;
 	bool mouse_button_left = false;
 	bool drag_image = false;
 	int  drag_image_x, drag_image_y; // start position of the drag in pixels so we know how much to translate
 	bool lcontrol = false;
 
-	int select_mode = 0; // 2: starting selection; 1: ending selection; 0: not selecting
+	int select_mode = 0; // 4: end move selected pixels; 3: moving selected pixels; 2: starting selection; 1: ending selection; 0: not selecting
 	Region_Selection selection;
+
+	int move_pixels_start_x = 0;
+	int move_pixels_start_y = 0;
+	int move_offset_x = 0;
+	int move_offset_y = 0;
+	Image *move_data = nullptr;
 
 	int tile_spacing = 16;
 
@@ -244,6 +252,8 @@ static void draw(Editor_Window *ed) {
 	Image *im = ed->image;
 
 	if (ed->image) {
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		glBindTexture(GL_TEXTURE_2D, im->texID);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, im->width, im->height, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
 		draw_quad(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale);
@@ -257,6 +267,7 @@ static void draw(Editor_Window *ed) {
 		// glLineWidth(1.5);
 		draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, ed->tile_spacing);
 		glColor4f(1, 1, 1, 1);
+		glDisable(GL_BLEND);
 	}
 
 	glDisable(GL_TEXTURE_2D);
@@ -272,17 +283,17 @@ static void draw(Editor_Window *ed) {
 	s32 color_bar_y = h - 40;
 	Color col = ed->color;
 	glColor4ub(col.r, col.g, col.b, col.a);
-	draw_quad(10, color_bar_y, 150, 30, 1.0);
+	draw_quad(10, color_bar_y, 40, 30, 1.0);
 	glColor4f(0, 0, 0, 1);
 	glLineWidth(2.0);
-	draw_quad_lines(10, color_bar_y, 150, 30, 1.0);
+	draw_quad_lines(10, color_bar_y, 40, 30, 1.0);
 	glColor4f(1, 1, 1, 1);
 
 	if (im && ed->show_mini_map) {
 		glEnable(GL_TEXTURE_2D);
 		glBindTexture(GL_TEXTURE_2D, im->texID);
 		float aspect = (float) im->width / (float) im->height;
-		const float default_minimap_height = 240.0f;
+		const float default_minimap_height = 200.0f;
 		float mmwidth = default_minimap_height * aspect;
 		draw_quad((w - mmwidth) - 10, 10, mmwidth, default_minimap_height, 1);
 
@@ -354,7 +365,7 @@ inline bool point_in_region(Region_Selection *sel, int px, int py) {
 	return !((px < x0 || px >= x1) || (py < y0 || py >= y1));
 }
 
-inline bool is_in_space_occupied_by_pallete(int px, int py, Palette *p) {
+inline bool is_in_space_occupied_by_palette(int px, int py, Palette *p) {
 	int x = p->x;
 	int y = p->y;
 
@@ -364,6 +375,26 @@ inline bool is_in_space_occupied_by_pallete(int px, int py, Palette *p) {
 	// printf("%d:%d\n", w, h);
 
 	return px >= x && px < x+w && py >= y && py < y+h;
+}
+
+static Image *generate_default_image(int width = 128, int height = 128, char *storage = nullptr) {
+	Image *im = new Image();
+	im->width = width;
+	im->height = height;
+	if (storage) {
+		im->data = storage;
+	} else {
+		im->data = static_cast<char *>(alloc(im->width * im->height * 4));
+		memset(im->data, 0xFFFFFFFF, im->width * im->height * 4);
+	}
+	im->path = nullptr;
+
+	glGenTextures(1, &im->texID);
+	glBindTexture(GL_TEXTURE_2D, im->texID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, im->width, im->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	return im;
 }
 
 static void update(Editor_Window *ed) {
@@ -378,7 +409,7 @@ static void update(Editor_Window *ed) {
 			if (cy < ed->image_y) cy = ed->image_y;
 			if (cy >= (ed->image_y+(ed->image->height*ed->image_scale))) cy = ed->image_y+((ed->image->height)*ed->image_scale);
 			bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
-			printf("p: %d:%d, %d:%d\n", cx, cy, ed->image_x, ed->image_y);
+			// printf("p: %d:%d, %d:%d\n", cx, cy, ed->image_x, ed->image_y);
 			assert(success);
 
 			ed->selection.x0 = px;
@@ -418,6 +449,107 @@ static void update(Editor_Window *ed) {
 			ed->is_dirty = true;
 			return;
 		}
+		if (ed->select_mode == BEGIN_MOVE_SELECTED_PIXELS && ed->mouse_button_left) {
+			if ((ed->selection.x1 - ed->selection.x0 == 0) || (ed->selection.y1 - ed->selection.y0 == 0)) {
+				ed->select_mode = NOT_SELECTING;
+				return;
+			}
+			bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
+			if (!point_in_region(&ed->selection, px, py)) return;
+
+			ed->move_pixels_start_x = px;
+			ed->move_pixels_start_y = py;
+			ed->move_offset_x = 0;
+			ed->move_offset_y = 0;
+
+			Region_Selection *sel = &ed->selection;
+			int w = sel->x1 - sel->x0;
+			int h = sel->y1 - sel->y0;
+			char *move_data = static_cast<char *>(alloc(4 * w * h));
+			memset(move_data, 0x80, 4*w*h);
+			for (int y = sel->y0; y < sel->y1; ++y) {
+				for (int x = sel->x0; x < sel->x1; x++) {
+					s32 *out = reinterpret_cast<s32 *>(move_data);
+					s32 *in = reinterpret_cast<s32 *>(ed->image->data);
+
+					out[(x - sel->x0) + (y - sel->y0) * w] = in[x + y * ed->image->width];
+				}
+			}
+
+			ed->move_data = generate_default_image(w, h, move_data);
+
+			ed->select_mode = END_MOVE_SELECTED_PIXELS;
+			return;
+		}
+		if (ed->select_mode == END_MOVE_SELECTED_PIXELS) {
+			if (cx < ed->image_x) cx = ed->image_x;
+			if (cx >= (ed->image_x+(ed->image->width*ed->image_scale))) cx = ed->image_x+((ed->image->width)*ed->image_scale);
+			if (cy < ed->image_y) cy = ed->image_y;
+			if (cy >= (ed->image_y+(ed->image->height*ed->image_scale))) cy = ed->image_y+((ed->image->height)*ed->image_scale);
+			bool success = get_pixel_pointed_at(ed, cx, cy, &px, &py);
+			assert(success);
+
+			Region_Selection *sel = &ed->selection;
+
+			for (int y = sel->y0; y < sel->y1; ++y) {
+				for (int x = sel->x0; x < sel->x1; x++) {
+					s32 *in = reinterpret_cast<s32 *>(ed->image->data);
+					in[x + y * ed->image->width] = 0x00000000; // set current region to transparency
+				}
+			}
+
+			int pixels_x = px - ed->move_pixels_start_x;
+			int pixels_y = py - ed->move_pixels_start_y;
+
+			sel->x0 += pixels_x;
+			sel->x1 += pixels_x;
+			sel->y0 += pixels_y;
+			sel->y1 += pixels_y;
+
+			if (sel->x0 < 0) ed->move_offset_x += -sel->x0;
+			if (sel->y0 < 0) ed->move_offset_y += -sel->y0;
+
+			if (sel->x0 < 0) sel->x0 = 0;
+			if (sel->x1 < 0) sel->x1 = 0;
+			if (sel->x0 >= ed->image->width) sel->x0 = ed->image->width;
+			if (sel->x1 >= ed->image->width) sel->x1 = ed->image->width;
+
+			if (sel->y0 < 0) sel->y0 = 0;
+			if (sel->y1 < 0) sel->y1 = 0;
+			if (sel->y0 > ed->image->height) sel->y0 = ed->image->height;
+			if (sel->y1 > ed->image->height) sel->y1 = ed->image->height;
+
+			ed->move_pixels_start_x = px;
+			ed->move_pixels_start_y = py;
+
+			int w = ed->move_data->width;
+			for (int y = sel->y0; y < sel->y1; ++y) {
+				for (int x = sel->x0; x < sel->x1; x++) {
+					s32 *out = reinterpret_cast<s32 *>(ed->move_data->data);
+					s32 *in = reinterpret_cast<s32 *>(ed->image->data);
+
+					assert(ed->move_offset_x < ed->image->width);
+					assert(ed->move_offset_y < ed->image->height);
+					in[x + y * ed->image->width] = out[(x - sel->x0 + ed->move_offset_x) + (y - sel->y0 + ed->move_offset_y) * w];
+				}
+			}			
+
+			if (!ed->mouse_button_left) {
+				ed->select_mode = NOT_SELECTING;
+
+				ed->move_pixels_start_x = 0;
+				ed->move_pixels_start_y = 0;
+
+				glDeleteTextures(1, &ed->move_data->texID);
+				free(ed->move_data->data);
+				ed->move_data->data = nullptr;
+
+				delete ed->move_data;
+				ed->move_data = nullptr;
+			}
+			ed->is_dirty = true;
+			return;
+		}
 		if (ed->drag_image) {
 			if (cx != ed->drag_image_x) {
 				ed->image_x += (cx - ed->drag_image_x);
@@ -431,7 +563,7 @@ static void update(Editor_Window *ed) {
 			}
 			return;
 		}
-		if (is_in_space_occupied_by_pallete(cx, cy, &ed->palette) && ed->mouse_button_left) {
+		if (is_in_space_occupied_by_palette(cx, cy, &ed->palette) && ed->mouse_button_left) {
 			Palette *p = &ed->palette;
 			int tile_size = p->tile_size;
 			int x = (cx - p->x) / tile_size;
@@ -464,6 +596,11 @@ static void write_image_to_disk(OS_Window win, Image *im) {
 	if (!im->path) {
 		im->path = os_open_file_dialog(win, true);
 		if (!im->path) return;
+
+		char *win_text = static_cast<char *>(alloc(strlen("Simp") + strlen(" - ") + strlen(im->path) + 1));
+		sprintf(win_text, "%s - %s", "Simp", im->path);
+		os_set_window_title(win, win_text);
+		free(win_text);
 	}
 	if (stbi_write_png(im->path, im->width, im->height, 4, im->data, im->width * 4)) {
 		printf("Saved image to %s\n", im->path);
@@ -493,22 +630,6 @@ static void zoom_editor_one_tick(Editor_Window *ed, s32 x, s32 y, bool down) {
 
 static Array<Editor_Window *> windows;
 
-static Image *generate_default_image() {
-	Image *im = new Image();
-	im->width = 128;
-	im->height = 128;
-	im->data = static_cast<char *>(alloc(im->width * im->height * 4));
-	memset(im->data, 0xFFFFFFFF, im->width * im->height * 4);
-	im->path = nullptr;
-
-	glGenTextures(1, &im->texID);
-	glBindTexture(GL_TEXTURE_2D, im->texID);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, im->width, im->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	return im;
-}
-
 int main(int argc, char **argv) {
 
 	Editor_Window *ed = create_editor_window(windows);
@@ -522,7 +643,12 @@ int main(int argc, char **argv) {
 			printf("Couldn't load image: %s\n", argv[1]);
 			return -1;
 		}
-			
+		
+		Image *im = ed->image;
+		char *win_text = static_cast<char *>(alloc(strlen("Simp") + strlen(" - ") + strlen(im->path) + 1));
+		sprintf(win_text, "%s - %s", "Simp", im->path);
+		os_set_window_title(ed->os_window, win_text);
+		free(win_text);
 	}
 
 	ed->selection.x0 = 0;
@@ -558,10 +684,12 @@ int main(int argc, char **argv) {
 					} else if (ev.key == Key_Type::KEY_S && ev.mod == Key_Type::LCONTROL && ev.down) {
 						write_image_to_disk(ed->os_window, ed->image);
 					} else if (ev.key == Key_Type::KEY_S && ev.down) {
-						ed->select_mode = BEGIN_SELECTION;
+						if (!ed->select_mode) ed->select_mode = BEGIN_SELECTION;
 					} else if (ev.key == Key_Type::KEY_T && ev.down) {
 						ed->show_mini_map = !ed->show_mini_map;
 						ed->is_dirty = true;
+					} else if (ev.key == Key_Type::KEY_M && ev.down) {
+						if (!ed->select_mode) ed->select_mode = BEGIN_MOVE_SELECTED_PIXELS;
 					}
 				}
 			}

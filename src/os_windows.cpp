@@ -35,6 +35,8 @@ LRESULT CALLBACK wnd_proc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 ev.key = Key_Type::KEY_S;
             } else if (vkcode == 'T') {
                 ev.key = Key_Type::KEY_T;
+            } else if (vkcode == 'M') {
+                ev.key = Key_Type::KEY_M;
             } else {
                 break;
             }
@@ -201,6 +203,9 @@ bool os_get_mouse_position(OS_Window win, s32 *x, s32 *y) {
 	return true;
 }
 
+void os_set_window_title(OS_Window win, const char *title) {
+    SetWindowText(win, title);
+}
 
 char *os_open_file_dialog(OS_Window win, bool is_for_save) {
     char path[MAX_PATH];
