@@ -37,6 +37,8 @@ LRESULT CALLBACK wnd_proc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 ev.key = Key_Type::KEY_T;
             } else if (vkcode == 'M') {
                 ev.key = Key_Type::KEY_M;
+            } else if (vkcode == 'A') {
+                ev.key = Key_Type::KEY_A;
             } else {
                 break;
             }

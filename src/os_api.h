@@ -98,6 +98,7 @@ enum Button_Type {
 enum Key_Type {
 	NONE,
 	LCONTROL,
+	KEY_A,
 	KEY_M,
 	KEY_S,
 	KEY_T,

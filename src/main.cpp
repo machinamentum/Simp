@@ -690,6 +690,14 @@ int main(int argc, char **argv) {
 						ed->is_dirty = true;
 					} else if (ev.key == Key_Type::KEY_M && ev.down) {
 						if (!ed->select_mode) ed->select_mode = BEGIN_MOVE_SELECTED_PIXELS;
+					} else if (ev.key == Key_Type::KEY_A && ev.down) {
+						if (ed->select_mode == BEGIN_SELECTION) {
+							ed->select_mode = NOT_SELECTING;
+							ed->selection.x0 = 0;
+							ed->selection.y0 = 0;
+							ed->selection.x1 = ed->image->width;
+							ed->selection.y1 = ed->image->height;
+						}
 					}
 				}
 			}
