@@ -13,6 +13,11 @@ A WIP simple pixel art editor. I could not find a simple editor that let me draw
  * M then left-click (hold) inside selected region - grab selected pixels
  * L - toggle pixel grid
 
+### Required Packages (Linux)
+
+ * xorg-dev
+ * gtk+-3.0-dev
+
 ### Build
 ```
 cmake .

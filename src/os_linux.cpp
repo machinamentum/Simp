@@ -87,6 +87,47 @@ void os_swap_buffers(OS_Window win) {
 	glXSwapBuffers(global_display, win);
 }
 
+
+void os_set_window_title(OS_Window win, const char *title) {
+    XStoreName(global_display, win, title);
+}
+
+#include <gtk/gtk.h>
+
+char *os_open_file_dialog(OS_Window win, bool is_for_save) {
+    gtk_init_check(NULL, NULL);
+    GtkFileChooserAction action = is_for_save ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN;
+    GtkWidget *dialog = gtk_file_chooser_dialog_new(is_for_save ? "Save File" : "Open File",
+                                          nullptr,
+                                          action,
+                                          "_Cancel", GTK_RESPONSE_CANCEL,
+                                          is_for_save ? "_Save" : "_Open", GTK_RESPONSE_ACCEPT,
+                                          NULL);
+
+    GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
+
+    if (is_for_save) {
+        gtk_file_chooser_set_do_overwrite_confirmation(chooser, true);
+        gtk_file_chooser_set_current_name(chooser, "Untitled Image");
+    }
+
+    gint res = gtk_dialog_run (GTK_DIALOG (dialog));
+    if (res == GTK_RESPONSE_ACCEPT) {
+        char *filename = gtk_file_chooser_get_filename(chooser);
+        if (filename) {
+            char *out = copy_string(filename);
+            g_free(filename);
+            gtk_widget_destroy(dialog);
+            while (gtk_events_pending()) gtk_main_iteration();
+            return out;
+        }
+    }
+
+    while (gtk_events_pending()) gtk_main_iteration();
+    gtk_widget_destroy (dialog);
+    return nullptr;
+}
+
 Array<Input_Event> input_events;
 #include <cstdio>
 void os_pump_input() {
@@ -161,6 +202,12 @@ void os_pump_input() {
                 ev.key = Key_Type::KEY_S;
             } else if (keysym == XK_T) {
                 ev.key = Key_Type::KEY_T;
+            } else if (keysym == XK_M) {
+                ev.key = Key_Type::KEY_M;
+            } else if (keysym == XK_A) {
+                ev.key = Key_Type::KEY_A;
+            } else if (keysym == XK_L) {
+                ev.key = Key_Type::KEY_L;
             } else {
                 continue;
             }
@@ -190,6 +237,12 @@ void os_pump_input() {
             	ev.key = Key_Type::KEY_S;
             } else if (keysym == XK_T) {
                 ev.key = Key_Type::KEY_T;
+            } else if (keysym == XK_M) {
+                ev.key = Key_Type::KEY_M;
+            } else if (keysym == XK_A) {
+                ev.key = Key_Type::KEY_A;
+            } else if (keysym == XK_L) {
+                ev.key = Key_Type::KEY_L;
             } else {
             	continue;
             }
