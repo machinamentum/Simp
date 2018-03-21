@@ -90,6 +90,7 @@ struct Editor_Window {
 
 	// UI toggles
 	bool show_mini_map = true;
+	bool draw_grid = true;
 
 	Color color;
 	Palette palette;
@@ -257,16 +258,18 @@ static void draw(Editor_Window *ed) {
 		glBindTexture(GL_TEXTURE_2D, im->texID);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, im->width, im->height, GL_RGBA, GL_UNSIGNED_BYTE, im->data);
 		draw_quad(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale);
-		if (ed->image_scale > 2.0) {
+		if (ed->draw_grid && ed->image_scale > 2.0) {
 			glColor4f(0.2, 0.2, 0.2, 0.5);
 			glLineWidth(1.0);
 			draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, 1);
 		}
 
-		glColor4f(0.0, 0.0, 0.0, 1.0);
-		// glLineWidth(1.5);
-		draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, ed->tile_spacing);
-		glColor4f(1, 1, 1, 1);
+		if (ed->draw_grid) {
+			glColor4f(0.0, 0.0, 0.0, 1.0);
+			// glLineWidth(1.5);
+			draw_grid(ed->image_x, ed->image_y, im->width, im->height, ed->image_scale, ed->tile_spacing);
+			glColor4f(1, 1, 1, 1);
+		}
 		glDisable(GL_BLEND);
 	}
 
@@ -698,6 +701,8 @@ int main(int argc, char **argv) {
 							ed->selection.x1 = ed->image->width;
 							ed->selection.y1 = ed->image->height;
 						}
+					} else if (ev.key == Key_Type::KEY_L && ev.down) {
+						ed->draw_grid = !ed->draw_grid;
 					}
 				}
 			}

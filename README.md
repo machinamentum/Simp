@@ -11,12 +11,13 @@ A WIP simple pixel art editor. I could not find a simple editor that let me draw
  * S then left-click (hold) - region select
  * S then A - reset region select to entire image
  * M then left-click (hold) inside selected region - grab selected pixels
+ * L - toggle pixel grid
 
 ### Build
 ```
 cmake .
-make
+cmake --build .
 ```
 
 ### Usage
-`simp <filename>`
+`simp [filename]`

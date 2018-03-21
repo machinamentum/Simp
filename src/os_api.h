@@ -99,6 +99,7 @@ enum Key_Type {
 	NONE,
 	LCONTROL,
 	KEY_A,
+	KEY_L,
 	KEY_M,
 	KEY_S,
 	KEY_T,
